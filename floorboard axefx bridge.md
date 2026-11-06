@@ -165,8 +165,10 @@
             - both pedals: heel = low (0.9V), toe = high (3.7V) -> ADC rises heel -> toe
             - TODO before wiring to a GPIO: 10k to the ESP32's 3.3V instead of 8, sweep, confirm the pin never goes above 3.3V (sensor is active + something links pin 2 to 5V) and the range still holds
             - TODO: recheck volume sweep with clip leads. still spotty -> dirty sensor/connector, log raw ADC later
-        - NEXT (resume here): confirm the 1k switch pull-up (below), then step 5
-        - optional: confirm the 1k switch pull-up - 1k (brown-black-red) between terminal 8 and 6, power on, compare against the predicted volts above
+        - 2026-11-05 CONFIRMED 1k switch pull-up: 1k terminal 8 -> 6, powered 5V, volts 6<->3: idle 4.70, DOWN 4.15, UP 3.92, UP+DOWN 3.70, D 2.70, C 2.25, B 2.00, A 1.40, SEL 0.462, TAP 0.02-0.04 (WAH toe switch not measured)
+            - all within ~0.05V of prediction EXCEPT B: 2.00 vs 1.80 predicted = ~670R in circuit vs 564R measured unpowered -> ~100R extra contact resistance, only ~0.1V from the C band with the sketch's thresholds. A slightly high too (1.40 vs 1.35)
+            - TODO: press B repeatedly, watch the spread. jumps around = dirty contact -> contact cleaner first (see "switch reliability" below)
+        - NEXT (resume here): step 5 (UNO golden reference)
     4b. multimeter on pin 6 per button, pins 2/4 swept heel->toe. record volts here (-> ESP32 divider values)
     5. UNO as golden reference: 5V native, no level shifting, run the archived sketch (fix `int i` -> 0). UNO on laptop USB, Floorboard on bench supply, GNDs tied, UNO 5V NOT connected, power Floorboard first. pin 6->A3, 2->A4, 4->A5, 5->D8
     6. logic analyzer on D8 -> save the UNO pulse train as the reference capture (check analyzer is 5V tolerant)
