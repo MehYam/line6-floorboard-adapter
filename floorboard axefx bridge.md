@@ -168,9 +168,16 @@
         - 2026-11-05 CONFIRMED 1k switch pull-up: 1k terminal 8 -> 6, powered 5V, volts 6<->3: idle 4.70, DOWN 4.15, UP 3.92, UP+DOWN 3.70, D 2.70, C 2.25, B 2.00, A 1.40, SEL 0.462, TAP 0.02-0.04 (WAH toe switch not measured)
             - all within ~0.05V of prediction EXCEPT B: 2.00 vs 1.80 predicted = ~670R in circuit vs 564R measured unpowered -> ~100R extra contact resistance, only ~0.1V from the C band with the sketch's thresholds. A slightly high too (1.40 vs 1.35)
             - TODO: press B repeatedly, watch the spread. jumps around = dirty contact -> contact cleaner first (see "switch reliability" below)
-        - NEXT (resume here): step 5 (UNO golden reference)
+        - NEXT (resume here): step 5 (UNO golden reference) - sketch written 2026-11-05, compiles, not run on hardware yet
     4b. multimeter on pin 6 per button, pins 2/4 swept heel->toe. record volts here (-> ESP32 divider values)
-    5. UNO as golden reference: 5V native, no level shifting, run the archived sketch (fix `int i` -> 0). UNO on laptop USB, Floorboard on bench supply, GNDs tied, UNO 5V NOT connected, power Floorboard first. pin 6->A3, 2->A4, 4->A5, 5->D8
+    5. UNO as golden reference: 5V native, no level shifting. UNO on laptop USB, Floorboard on bench supply, GNDs tied, UNO 5V NOT tied to the bench 5V, power Floorboard first. pin 6->A3, 2->A4, 4->A5, 5->D8
+        - sketch: [firmware/uno-reference](firmware/uno-reference/src/main.cpp) (PlatformIO, wiring in the header). rewrite of the archived one instead of running it as-is: archived one has no pull-ups (board has none), needs digitalWriteFast, leaves interrupts on during the pulse train (timer tick can turn a 1us "on" into an "off"), breaks on <3-char text
+        - pull-ups to the UNO's 5V pin (its ADC reference -> ratiometric): 1k on A3, 10k on A4 + A5. 330R in series D8 -> pin 5
+        - serial console 115200: `help`, `disp`, `led <name> on|off`, `all`, `clear`, `frame b0 b1 b2 b3`, `send`, `test`, `stream on|off`, `range [reset]`
+        - prints `down B raw=409` / `up B 340ms n= min= max= avg= glitch=` per press -> covers the B spread TODO. pedals print raw counts on change, `range` = min/max for calibration
+        - button thresholds = midpoints of the 2026-11-05 volts (WAH toe switch predicted, not measured)
+        - setup: install PlatformIO (VS Code extension or `pipx install platformio`), `sudo usermod -aG dialout kai` + re-login, `pio run -t upload`, `pio device monitor`
+        - check: display shows "UNO" at boot (after `send` if the board was powered after the UNO), `test` walks every LED + segment in the expected order (byte/bit table above)
     6. logic analyzer on D8 -> save the UNO pulse train as the reference capture (check analyzer is 5V tolerant)
     7. ESP32: RMT pulse train -> 74AHCT125 -> compare capture against the UNO one, then dividers + ADC for buttons/pedals
 - [ ] later: switch reliability (the old POD sometimes misfired)

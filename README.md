@@ -7,3 +7,6 @@ The Floor Board itself stays unmodified: the bridge talks to it the way the POD 
 ## docs
 - [floorboard axefx bridge.md](floorboard%20axefx%20bridge.md) - design notes, pinout, measurements, parts, plan and progress
 - [floorboard arduino sketch.md](floorboard%20arduino%20sketch.md) - archived copy of the Arduino sketch the protocol comes from (third-party code, see its header for attribution)
+
+## firmware
+- [firmware/uno-reference](firmware/uno-reference/src/main.cpp) - Arduino UNO bench reference: reads buttons/pedals, drives LEDs/display over serial commands (PlatformIO)
