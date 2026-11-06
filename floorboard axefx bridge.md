@@ -156,8 +156,16 @@
         - predicted at 1k to 5V: idle 4.75, DOWN 4.17, UP 3.94, UP+DOWN 3.71, D 2.69, C 2.23, B 1.80, A 1.35, WAH 0.93, SEL 0.48, TAP ~0V
         - ESP32 plan: 1k pull-up to 3.3V instead -> 0-3.1V range, no divider needed on the switch line
         - WAH "button" = the toe switch under the wah treadle. plan: ignore it, do wah on/off by pedal position (Ultra modifier or in the bridge firmware)
-    4a. pedals: also NO internal voltage (powered: wah 200mV heel -> 1mV toe, vol 121mV -> 1mV = floating noise). each treadle = variable resistor to GND, needs a pull-up from the host like the switch line
-        - NEXT (resume here): power off, ohms mode, black on 3, red on 2 (wah) then 4 (vol): heel / middle / toe -> pick a pull-up per pedal that spans the ESP32's 0-3.3V
+    4a. pedals: also NO internal voltage (powered: wah 200mV heel -> 1mV toe, vol 121mV -> 1mV = floating noise). needs a pull-up from the host like the switch line
+        - 2026-11-05, power off, ohms: treadle position changes NOTHING. 2->3 and 4->3 = fixed 35k (same both probe directions). 2->7 (5V) = 35k one way, 19k the other -> semiconductor in the path
+            -> NOT a plain pot: active sensor (optical / Hall?), only works powered
+        - 2026-11-05, powered 5.00V, 10k pull-up terminal 8 -> 2: wah pin 2 (meter 2<->3) reads 0.9V -> 3.7V, smooth sweep. volume (10k on 8 -> 4, meter 4<->3) roughly the same, readings spotty (probably probe contact, recheck with clip leads)
+            - equivalent sensor resistance ~2.2k-28k to GND -> best pull-up = sqrt(Rmin*Rmax) ~ 8k -> 10k (standard value, near enough)
+            - ESP32 plan: 10k pull-up to 3.3V per pedal -> predicted ~0.6-2.4V at the pin, no divider
+            - both pedals: heel = low (0.9V), toe = high (3.7V) -> ADC rises heel -> toe
+            - TODO before wiring to a GPIO: 10k to the ESP32's 3.3V instead of 8, sweep, confirm the pin never goes above 3.3V (sensor is active + something links pin 2 to 5V) and the range still holds
+            - TODO: recheck volume sweep with clip leads. still spotty -> dirty sensor/connector, log raw ADC later
+        - NEXT (resume here): confirm the 1k switch pull-up (below), then step 5
         - optional: confirm the 1k switch pull-up - 1k (brown-black-red) between terminal 8 and 6, power on, compare against the predicted volts above
     4b. multimeter on pin 6 per button, pins 2/4 swept heel->toe. record volts here (-> ESP32 divider values)
     5. UNO as golden reference: 5V native, no level shifting, run the archived sketch (fix `int i` -> 0). UNO on laptop USB, Floorboard on bench supply, GNDs tied, UNO 5V NOT connected, power Floorboard first. pin 6->A3, 2->A4, 4->A5, 5->D8
