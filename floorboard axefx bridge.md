@@ -150,6 +150,7 @@
         - DONE 2026-11-04: 200mA limit -> CC, sagged to 4.6V. at 500mA limit: 5.00V, 0.237A idle, no CC, no heat
         - display shows garbage at power-up ("bAd"-ish, middle digit differs each time) = random latch state, not a message (no LED data sent yet)
         - power budget: Floorboard ~0.25A (+ more with all LEDs lit?) + ESP32 -> 5V 1A adapter for the final build; another reason not to use laptop USB
+            - measured 2026-11-06: 0.271A all LEDs + segments on, 0.03A all off -> 1A adapter still has plenty of headroom
     4. switch ladder: Floorboard has NO pull-up on pin 6 (powered idle = 0V). each button = resistor to GND, the POD supplies the pull-up
         - measured 2026-11-04, power off, pin 6 <-> GND: idle 19.04k, TAP ~1-10R, SEL ~100-115R, WAH 230R, A 370R, B 564R, C 805R, D 1165R, UP+DOWN 2.865k, UP 3.7k, DOWN 5k
         - a 1k pull-up reproduces every threshold in the Arduino sketch -> POD almost certainly used 1k to 5V (and the sketch's builder must have had one too)
@@ -165,10 +166,10 @@
             - both pedals: heel = low (0.9V), toe = high (3.7V) -> ADC rises heel -> toe
             - TODO before wiring to a GPIO: 10k to the ESP32's 3.3V instead of 8, sweep, confirm the pin never goes above 3.3V (sensor is active + something links pin 2 to 5V) and the range still holds
             - TODO: recheck volume sweep with clip leads. still spotty -> dirty sensor/connector, log raw ADC later
+                - 2026-11-06 on the UNO: `range` swept vol 132-761 cleanly. jitter at a fixed position not checked yet (`stream on`, hold still)
         - 2026-11-05 CONFIRMED 1k switch pull-up: 1k terminal 8 -> 6, powered 5V, volts 6<->3: idle 4.70, DOWN 4.15, UP 3.92, UP+DOWN 3.70, D 2.70, C 2.25, B 2.00, A 1.40, SEL 0.462, TAP 0.02-0.04 (WAH toe switch not measured)
             - all within ~0.05V of prediction EXCEPT B: 2.00 vs 1.80 predicted = ~670R in circuit vs 564R measured unpowered -> ~100R extra contact resistance, only ~0.1V from the C band with the sketch's thresholds. A slightly high too (1.40 vs 1.35)
-            - TODO: press B repeatedly, watch the spread. jumps around = dirty contact -> contact cleaner first (see "switch reliability" below)
-        - NEXT (resume here): step 5 (UNO golden reference) - sketch written 2026-11-05, compiles, not run on hardware yet
+            - DONE 2026-11-06 (UNO run, step 5): B wanders from press to press, sometimes reads as C -> dirty contact, cleaning
     4b. multimeter on pin 6 per button, pins 2/4 swept heel->toe. record volts here (-> ESP32 divider values)
     5. UNO as golden reference: 5V native, no level shifting. UNO on laptop USB, Floorboard on bench supply, GNDs tied, UNO 5V NOT tied to the bench 5V, power Floorboard first. pin 6->A3, 2->A4, 4->A5, 5->D8
         - sketch: [firmware/uno-reference](firmware/uno-reference/src/main.cpp) (PlatformIO, wiring in the header). rewrite of the archived one instead of running it as-is: archived one has no pull-ups (board has none), needs digitalWriteFast, leaves interrupts on during the pulse train (timer tick can turn a 1us "on" into an "off"), breaks on <3-char text
@@ -177,7 +178,34 @@
         - prints `down B raw=409` / `up B 340ms n= min= max= avg= glitch=` per press -> covers the B spread TODO. pedals print raw counts on change, `range` = min/max for calibration
         - button thresholds = midpoints of the 2026-11-05 volts (WAH toe switch predicted, not measured)
         - setup: install PlatformIO (VS Code extension or `pipx install platformio`), `sudo usermod -aG dialout kai` + re-login, `pio run -t upload`, `pio device monitor`
+            - DONE 2026-11-06: pipx PlatformIO 6.2.0, dialout OK, UNO = /dev/ttyACM0
+        - bench runbook (as wired 2026-11-06):
+            - breadboard: one side's rails = BENCH (bench +5V on red with terminals 7+8, bench - on blue with terminals 1+3). other side = UNO (UNO 5V on red -> the 3 pull-ups, UNO GND on blue)
+                - ONE jumper blue <-> blue. the two red rails NEVER touch. tape-label them. check for split rails (continuity end to end)
+                - each pull-up on its own row: row = UNO pin + terminal wire + resistor to UNO red. D8 = DIGITAL header pin 8 (next to the gap after 7), never use 0/1 (USB serial)
+            - before power, continuity: terminal 7 <-> UNO 5V NO beep, terminal 1 <-> UNO GND beep, terminal 7 <-> 1 NO beep
+            - power up: bench 5.00V / 500mA limit ON first (~0.03-0.27A), THEN plug UNO USB -> display shows "Uno". console: `cd firmware/uno-reference && pio device monitor -b 115200`
+            - power down: unplug USB first, then bench off. UNO pull-ups + D8 must never drive an unpowered Floorboard
+            - with nothing connected the UNO prints phantom `down`/`wah`/`vol` events (floating inputs) - normal
         - check: display shows "UNO" at boot (after `send` if the board was powered after the UNO), `test` walks every LED + segment in the expected order (byte/bit table above)
+        - FIRST RUN 2026-11-06: flashed via pipx PlatformIO, wired on breadboard (bench rail / UNO rail, GND-only link; 220R+110R in series for the 330R)
+            - LED protocol WORKS: display shows "Uno" at boot, `test` order correct for every LED + segment -> pulse timing (_delay_us, interrupts off) accepted, bit mapping right
+            - Floorboard current: 0.125A showing "Uno", 0.271A `all on`, 0.03A `clear` -> the 0.237A "idle" on 11-04 was the random latch pattern with lots lit. budget ~0.3A for the Floorboard
+            - pedals (10k pull-up to UNO 5V), `range`: wah 167-756, vol 132-761 counts (~0.8-3.7V) - wider than the archived sketch's 380-780
+            - WAH toe switch (first measurement): down raw 196-201, held min 192 / max 227, avg ~193-198, glitch 0 -> predicted ~190 holds. max 227 is only 11 counts under the WAH/A threshold (238)
+            - all buttons fire EXCEPT B: one event early (down raw=403, held 403-419 avg 413, glitch 0 = right in its band 348-435), then nothing on later presses
+            - B came back after a few hard, fast releases ("flicking" it). then 9 presses: held avg 378, 383, 413, 433, 440(C), 443(C), 380, 396, 399 -> ~585-765R vs 564R unpowered. 2 of 9 read as C
+            - B's resistance changes from press to press, up to ~790R (raw 452), and C sits at ~805R -> no threshold can separate them. DIRTY/WORN B CONTACT, not firmware. within one press it's steady (glitch mostly 0-5)
+            - per-button held raws 2026-11-06 (before cleaning; 1k pull-up to UNO 5V, threshold in brackets = top of band):
+                - TAP avg 33, 0-42 [50] | SEL 93, 93-97 [142] | WAH toe ~195, 192-227 [238] | A 278, 278-280 [348] | B 401, 396-408 (other presses 378-443) [435]
+                - C 462, 461-465 [507] | D 555, 555-557 [655] | UP+DOWN 762, 761-769 [780] | UP 810, 808-822 [826] | DOWN 859, 856-861 [906] | idle ~962 (11-05)
+                - TAP also looks dirty: avg 33 (~35R) vs ~4-8 counts on 11-05, max 42 is 8 under the SEL threshold
+                - tight spot: UP max 822 is 4 under the UP/DOWN threshold (826). midpoint of the new values = 834
+            - decision: open the Floorboard, clean every footswitch with contact cleaner
+                - unscrew the pigtail at the Floorboard jack, leave the breadboard wired
+                - while it's open: photo the internals; identify the pedal sensors (4a: active, optical/Hall?) and the footswitch type (cleanable vs sealed -> replacement part number)
+                - after cleaning, before powering: re-measure pin 6 <-> GND per button with the meter, compare to 11-04 (B 564R, TAP ~1-10R)
+        - NEXT (resume here): after cleaning, rerun every button (10 presses of B, A, TAP), then recompute thresholds in main.cpp = midpoints of the clean avgs (UP/DOWN 826 -> ~834 at least), reflash, then step 6
     6. logic analyzer on D8 -> save the UNO pulse train as the reference capture (check analyzer is 5V tolerant)
     7. ESP32: RMT pulse train -> 74AHCT125 -> compare capture against the UNO one, then dividers + ADC for buttons/pedals
 - [ ] later: switch reliability (the old POD sometimes misfired)
@@ -185,6 +213,7 @@
     - likely causes: dirty/worn switch contacts adding ohms (A only has ~150R headroom before it reads as B), voltage passing through other buttons' bands during press/release + contact bounce, tight bands at the top (idle/DOWN/UP/UP+DOWN ~0.12V apart)
     - fix in order: (1) firmware: thresholds = midpoints of measured values, accept a press only after N stable samples, 100nF on the input (2) clean/replace footswitches (contact cleaner) (3) only if still flaky: switches -> digital (74HC165 shift register), needs the bridge inside the Floorboard (Cat5 has no spare pins)
     - measure first: firmware logs raw ADC per press, hammer each button ~50x, look at the spread
+    - 2026-11-06 UNO run confirmed it: steady within a press, but B (and less so TAP) drift press to press -> contacts. cleaning in progress (step 5)
 - [ ] phase 2: test GREATLINK cable with sysex, order MIDI jack parts (+ UM-ONE if the cable is flaky)
 - [ ] back up AxeFx presets
 - [ ] side A: python scripts talking to AxeFx
