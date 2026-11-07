@@ -209,9 +209,28 @@
                     - snap-dome contact: cleaning may only help for a while. if B/TAP still drift after cleaning -> replace (cents each, easy desolder). swap all of them so they feel the same
                     - replacement: 12x12 THT tact, e.g. Omron B3F-40xx (the suffix sets the height) or E-Switch / C&K equivalent. MUST match the plunger height so the lid plungers still press them right
                     - TODO measure: height PCB surface -> top of plunger (calipers) = ___ mm
+                    - Omron B3F 12x12 THT family (check the Omron datasheet for exact heights): B3F-4000 flat ~4.3mm 130gf | B3F-4005 flat ~4.3mm 260gf | B3F-4050 projected (round plunger) ~7.3mm 130gf | B3F-4055 projected ~7.3mm 260gf
+                    - photo (SW1, SW6): plunger barely rises above the metal frame, low body -> looks like the FLAT ~4.3-5mm type, not the 7.3mm projected one. no markings visible (generic part likely). calipers still decide
+                    - if ~4.3mm -> B3F-4005 (260gf, stiffer = fewer accidental presses under a foot) or B3F-4000 (130gf, closer to a generic feel). ~7.3mm -> B3F-4055 / 4050. something else (5mm is common for generics) -> generic 12x12 tact in that exact height
+                    - order ~12: 8 footswitches (TAP SEL A B C D UP DOWN) + check whether the WAH toe uses the same part + spares
                     - pedal sensors: still to identify
                 - after cleaning, before powering: re-measure pin 6 <-> GND per button with the meter, compare to 11-04 (B 564R, TAP ~1-10R)
-        - NEXT (resume here): after cleaning, rerun every button (10 presses of B, A, TAP), then recompute thresholds in main.cpp = midpoints of the clean avgs (UP/DOWN 826 -> ~834 at least), reflash, then step 6
+        - 2026-11-07 CLEANED (CRC QD), rerun, one press each: every button in band, glitch=0 on all. TAP still mechanically finicky (needs a firm press), may replace switches later; good enough for now
+            - held avg (min-max): TAP 7 (6-24) | SEL 97 (96-124) | A 292 (289-327) | B 377 (375-425) | C 461 (461-463) | D 556 (555-577) | UP+DOWN 762 (761-764) | UP 810 (809-813) | DOWN 859 (858-877). WAH toe not rerun
+            - TAP back to ~7 (was avg 33 dirty), B steady at 377 (was 378-443) -> cleaning worked electrically
+            - A moved UP: 292 vs 278 before, max 327. watch it, it's the button closest to its neighbour now
+            - chords: pressing UP+DOWN logs `UP 45ms` first and a trailing `DOWN 25ms` on release (one foot never lands both at once). the real firmware must act on UP/DOWN on release, or wait ~100ms for the chord, and drop the trailing single after a chord
+            - thresholds in main.cpp recomputed = midpoint of the GAP (lower button's max, upper button's min) over both runs, not of the avgs: TAP 60, SEL 158, WAH 252, A 351, B 443, C 510, D 669, UP+DOWN 788, UP 839, DOWN 919. builds; NOT reflashed yet
+        - 2026-11-07 REFLASHED with the new thresholds, multi-press rerun (10x SEL/DOWN/UP/WAH toe, 9x UP+DOWN, 6x TAP, 4x A; B log not captured):
+            - SEL 93-153 avg 94-106 (one press glitch=7: brief upward spikes, debounce absorbed them) | A 278-298 avg 278-289 | WAH toe 186-222 avg 187-192
+            - UP 808-824 | DOWN 856-869 | UP+DOWN 761-777 -> all inside the new bands with room. thresholds stay as they are
+            - chord pattern confirmed: almost every UP+DOWN starts with a 28-55ms `UP` (or `DOWN`), sometimes ends with a 20-31ms `DOWN`
+            - TAP: clean presses read 0-3, BUT it missed some presses (nothing printed = contact never closed) and one press read as WAH (158-245, avg 181, glitch 18 = ~200R through the contact)
+            - B: read as C once or twice (per the user; log not pasted)
+            - -> TAP and B are still contact problems after cleaning. NO threshold fixes these: the bad TAP lands right on top of the WAH toe (186-222), dirty B on top of C. replace the switches (see replacement part above, measure the plunger height first)
+            - pedal `range`: wah 145-757, vol 140-761 (11-06: 167-756, 132-761)
+        - NEXT (resume here): step 6. switch replacement (TAP, B, probably all of them) runs in parallel, then rerun 10x TAP + B
+        - [ ] LATER: replace footswitches (all of them, same part, see replacement notes above) -> then rerun the 10-press test on EVERY button and recheck the thresholds in main.cpp (new switches may sit at slightly different raws)
     6. logic analyzer on D8 -> save the UNO pulse train as the reference capture (check analyzer is 5V tolerant)
     7. ESP32: RMT pulse train -> 74AHCT125 -> compare capture against the UNO one, then dividers + ADC for buttons/pedals
 - [ ] later: switch reliability (the old POD sometimes misfired)

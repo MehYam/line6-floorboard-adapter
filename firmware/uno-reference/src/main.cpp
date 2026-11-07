@@ -110,13 +110,17 @@ void setText(const char *s) {
 }
 
 // ---------------------------------------------------------------- switch ladder
-// 10-bit counts at 5V with the 1k pull-up. Measured volts (2026-11-05) -> counts:
-// TAP ~5, SEL 95, WAH ~190 (predicted, not measured), A 287, B 409, C 461, D 553,
-// UP+DOWN 757, UP 803, DOWN 850, idle 962. Each threshold = midpoint between neighbours.
+// 10-bit counts at 5V with the 1k pull-up, held values from the UNO runs (2026-11-06, and 11-07 after
+// cleaning the switches), as avg (min-max):
+//   TAP 7 (6-42), SEL 97 (93-124), WAH 195 (192-227), A 292 (278-327), B 377 (375-425), C 461 (461-465),
+//   D 556 (555-577), UP+DOWN 762 (761-769), UP 810 (808-822), DOWN 859 (856-877), idle ~962.
+// Each threshold = midpoint of the gap between the lower button's max and the upper button's min, so the
+// worst held sample seen so far still has the most room on both sides. (Avg midpoints would put A/B at 334,
+// 7 counts above A's max 327.)
 struct Band { uint16_t below; const char *name; };
 const Band BANDS[] = {
-  {50, "TAP"}, {142, "SEL"}, {238, "WAH"}, {348, "A"}, {435, "B"},
-  {507, "C"}, {655, "D"}, {780, "UP+DOWN"}, {826, "UP"}, {906, "DOWN"},
+  {60, "TAP"}, {158, "SEL"}, {252, "WAH"}, {351, "A"}, {443, "B"},
+  {510, "C"}, {669, "D"}, {788, "UP+DOWN"}, {839, "UP"}, {919, "DOWN"},
 };
 const uint8_t NUM_BANDS = sizeof(BANDS) / sizeof(BANDS[0]);
 const uint8_t NONE = NUM_BANDS;
