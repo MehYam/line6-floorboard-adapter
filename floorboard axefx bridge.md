@@ -204,6 +204,12 @@
             - decision: open the Floorboard, clean every footswitch with contact cleaner
                 - unscrew the pigtail at the Floorboard jack, leave the breadboard wired
                 - while it's open: photo the internals; identify the pedal sensors (4a: active, optical/Hall?) and the footswitch type (cleanable vs sealed -> replacement part number)
+                - 2026-11-07 opened, photo taken. footswitches = plain 12x12mm through-hole tactile switches (4 legs, metal top frame, round black plunger, no cap), on the main board, silkscreen SW1, SW2, SW3, SW6... the lid has spring-loaded plungers that press on them
+                    - not sealed (gap around the plunger), no lubricant -> CRC QD (red/white can) is fine: short burst at the plunger gap with the switch facing down or sideways, press 20-30x while wet, 2-3 rounds, keep spray off connector M1, dry 15 min before powering
+                    - snap-dome contact: cleaning may only help for a while. if B/TAP still drift after cleaning -> replace (cents each, easy desolder). swap all of them so they feel the same
+                    - replacement: 12x12 THT tact, e.g. Omron B3F-40xx (the suffix sets the height) or E-Switch / C&K equivalent. MUST match the plunger height so the lid plungers still press them right
+                    - TODO measure: height PCB surface -> top of plunger (calipers) = ___ mm
+                    - pedal sensors: still to identify
                 - after cleaning, before powering: re-measure pin 6 <-> GND per button with the meter, compare to 11-04 (B 564R, TAP ~1-10R)
         - NEXT (resume here): after cleaning, rerun every button (10 presses of B, A, TAP), then recompute thresholds in main.cpp = midpoints of the clean avgs (UP/DOWN 826 -> ~834 at least), reflash, then step 6
     6. logic analyzer on D8 -> save the UNO pulse train as the reference capture (check analyzer is 5V tolerant)
