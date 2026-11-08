@@ -229,9 +229,23 @@
             - B: read as C once or twice (per the user; log not pasted)
             - -> TAP and B are still contact problems after cleaning. NO threshold fixes these: the bad TAP lands right on top of the WAH toe (186-222), dirty B on top of C. replace the switches (see replacement part above, measure the plunger height first)
             - pedal `range`: wah 145-757, vol 140-761 (11-06: 167-756, 132-761)
-        - NEXT (resume here): step 6. switch replacement (TAP, B, probably all of them) runs in parallel, then rerun 10x TAP + B
+        - NEXT: step 6. switch replacement (TAP, B, probably all of them) runs in parallel, then rerun 10x TAP + B
         - [ ] LATER: replace footswitches (all of them, same part, see replacement notes above) -> then rerun the 10-press test on EVERY button and recheck the thresholds in main.cpp (new switches may sit at slightly different raws)
     6. logic analyzer on D8 -> save the UNO pulse train as the reference capture (check analyzer is 5V tolerant)
+        - setup: `sudo apt install sigrok-cli pulseview sigrok-firmware-fx2lafw` (kai is in plugdev; replug the analyzer after install so the udev rule applies). check: `sigrok-cli --scan` -> fx2lafw device
+        - 5V: the cheap 24MHz fx2lafw boards are usually sold as 5V-tolerant inputs, but check the listing / look for a buffer chip (74HC245 or similar) on the board before clipping on
+        - hookup (Floorboard powered + UNO running as usual): analyzer GND -> UNO GND rail, CH0 (D0) -> D8 (UNO side of the 330R), CH1 (D1) -> RJ45 pin 5 (Floorboard side of the 330R = what the board actually sees)
+        - capture (run from the repo root, or use absolute paths: srzip fails with "Failure to create temporary file" if captures/ isn't there): `sigrok-cli -d fx2lafw -c samplerate=24m --samples 24000000 -C D0,D1 -o captures/uno-reference.sr` (1 s window), and while it runs type `frame A5 3C 0F 81` in the UNO console (mixed bits in every byte)
+            - easier with a trigger: `-c samplerate=24m:captureratio=10 -t D0=r --samples 120000` (5 ms, 10% before the first rising edge; WITHOUT captureratio the capture starts high and the first pulse is lost -> 31 pulses), start it, then send the command
+        - decode: `python3 tools/decode_led_capture.py captures/uno-reference.sr` (and `--channel 1`) -> must print `frame A5 3C 0F 81` + high/low/period stats. stdlib only
+        - expect ~1us / ~5us high, ~6.3us period, ~200us per frame. CH0 vs CH1 should match (330R + board input doesn't slow the edges)
+        - the stats are the spec for step 7: the ESP32 RMT capture must decode the same and land in the same windows
+        - DONE 2026-11-07: captures/uno-reference.sr (`frame A5 3C 0F 81`, captureratio=10) decodes to `frame A5 3C 0F 81`, and the Floorboard showed it right
+            - bit 1: high 1.250-1.292us, low 7.167-9.000us | bit 0: high 5.292-5.333us, low 3.292-5.500us | period 8.42-10.83us (avg 9.67) | frame 301us
+            - highs are on target (_delay_us + ~4 cycles for the port write). the LOWS are 2-4us longer than the sketch's 5/1us: the code between pulses (frame[i>>3] >> (i&7) is a variable shift = a loop on AVR) runs while the line is low. its length varies with i&7 -> the jitter
+            - the board decodes it anyway -> it reads the HIGH width; the low time only has to fall inside what's proven here. the nominal 1us low after a '0' was never tested (shortest seen 3.29us)
+            - spec for the ESP32 (step 7), staying inside the proven window: '1' = 1.25us high + 8us low, '0' = 5.3us high + 4.5us low (~9.6us period, ~300us frame). RMT makes these exact, no jitter
+            - later, optional: sweep the ESP32 timings to find the board's real limits (shortest low, the 1/0 high split)
     7. ESP32: RMT pulse train -> 74AHCT125 -> compare capture against the UNO one, then dividers + ADC for buttons/pedals
 - [ ] later: switch reliability (the old POD sometimes misfired)
     - Floorboard is passive (resistors only), the host's pull-up + ADC + firmware decide the button -> the bridge can do better than the POD did
