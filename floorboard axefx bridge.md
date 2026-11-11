@@ -68,6 +68,8 @@
 - per preset: modifier on Wah freq <- Ext 1, Volume block level <- Ext 2
 - channels A-D + bank up/down -> Program Change, 4 presets/bank. 384 presets, so >127 needs Bank Select (CC 0) first
     - GM Arts doc: CC 0 value 0/1/2 = Ultra bank A/B/C (128 presets each), applies to the NEXT PC. avoid CC 32 (Bank LSB)
+        - CONFIRMED 2026-11-10: `B0 00 01 C0 00` (no pause between them) -> preset 128
+        - bridge: ALWAYS send CC 0 before every PC (preset n -> CC 0 = n / 128, PC = n % 128). don't rely on the Ultra remembering the last bank (not tested whether it does)
 - Fractal/MFC-101 default CCs (set the same numbers in I/O > MIDI, then any MFC-style mapping just works): 14 tap, 15 tuner, 16/17 Ext 1/2, 37 Amp 1, 41 Chorus 1, 47 Delay 1, 49 Drive 1, 56 Flanger 1, 83 Reverb 1, 93 Volume 1, 97 Wah 1, 34 global bypass
     - -> use these instead of inventing our own
     - 2026-11-10 checked on my Ultra: the CCs are on I/O > CTRL (the page after MIDI), and they're ALREADY the defaults: input vol 10, bypass 13, tap 14, tuner 15, Ext 2 17, Ext 3-8 = 18-23, looper 1 24-28, looper 2 29-33, Amp 37/38, Cab 39/40, Chorus 41/42, Comp 43/44, Crossover 45/46, Delay 47/48, Drive 49/50, Flanger 56/57, FX loop 59. rest of the list not read yet (Reverb, Wah, Volume should be 83, 97, 93)
@@ -248,7 +250,7 @@
             - B: read as C once or twice (per the user; log not pasted)
             - -> TAP and B are still contact problems after cleaning. NO threshold fixes these: the bad TAP lands right on top of the WAH toe (186-222), dirty B on top of C. replace the switches (see replacement part above, measure the plunger height first)
             - pedal `range`: wah 145-757, vol 140-761 (11-06: 167-756, 132-761)
-        - NEXT: step 6. switch replacement (TAP, B, probably all of them) runs in parallel, then rerun 10x TAP + B
+        - NEXT: step 7 (step 6 done 11-07). switch replacement (TAP, B, probably all of them) runs in parallel, then rerun 10x TAP + B
         - [ ] LATER: replace footswitches (all of them, same part, see replacement notes above) -> then rerun the 10-press test on EVERY button and recheck the thresholds in main.cpp (new switches may sit at slightly different raws)
     6. logic analyzer on D8 -> save the UNO pulse train as the reference capture (check analyzer is 5V tolerant)
         - setup: `sudo apt install sigrok-cli pulseview sigrok-firmware-fx2lafw` (kai is in plugdev; replug the analyzer after install so the udev rule applies). check: `sigrok-cli --scan` -> fx2lafw device
@@ -295,6 +297,8 @@
     - measure first: firmware logs raw ADC per press, hammer each button ~50x, look at the spread
     - 2026-11-06 UNO run confirmed it: steady within a press, but B (and less so TAP) drift press to press -> contacts. cleaning in progress (step 5)
 - [ ] phase 2: test GREATLINK cable with sysex, order MIDI jack parts (+ UM-ONE if the cable is flaky)
+    - [x] GREATLINK cable: works for everything so far, UM-ONE not needed yet (no big dump has gone through it on linux)
+    - [ ] order MIDI jack parts (needed for stage 3 only)
     - 2026-11-10 GREATLINK cable on linux: lsusb `fc02:0101 USB MIDI Interface`, ALSA `hw:1,0,0`. class-compliant, no driver needed
         - plugs: the ORIGINAL (Axe-Edit-proven) orientation is right; my "crossed" guess was wrong -> nothing in either direction. right way round, the cable's green LED blinks constantly (realtime sysex)
         - Ultra I/O > MIDI: channel 1, PROG CHANGE on, mapping none, SYSEX ID 00 01 74, DISPLAY OFFSET 0, SEND REALTIME SYSEX all
@@ -303,9 +307,19 @@
         - sysex round trip works: firmware query `F0 00 01 74 00 08 00 00 F7` -> `F0 00 01 74 01 08 0B 00 F7` = Ultra (01), firmware 11.00. no checksum on the Ultra
         - cable/driver quirk: some messages arrive with a doubled F7 (`... 10 F7 F7`) -> the parser must drop stray F7s. watch for worse corruption on big dumps (the backup = the real test)
         - tooling gotcha: `amidi -d` killed by `timeout` prints nothing (buffered stdout lost). use `timeout -s INT N amidi ... -r file.bin` + xxd instead
-        - Ultra param set (per a forum post, unverified): `F0 00 01 74 01 02 b_lo b_hi p_lo p_hi v_lo v_hi 01 F7`, values 0-254 split into 4-bit nibbles. GetBypassStates / preset name / dump formats NOT found yet: GM Arts Ultra sysex doc (gmarts.org/html/axefx_ultra_sysex_1005.html) is dead, fractal wiki blocks automated fetches
+        - Ultra param set (per a forum post, unverified): `F0 00 01 74 01 02 b_lo b_hi p_lo p_hi v_lo v_hi 01 F7`, values 0-254 split into 4-bit nibbles. GetBypassStates / preset name / dump formats NOT found yet. the GM Arts doc (now archived in the repo, see AxeFx mapping) has param-set only
 - [x] back up AxeFx presets (done earlier with Axe-Edit on Windows)
 - [ ] side A: python scripts talking to AxeFx
+    - DONE by hand 2026-11-10 (amidi): PC + bank select, bypass CCs, Ext 1/2 sweeps all work -> details under AxeFx mapping
+    - python: `sudo apt install python3-mido python3-rtmidi` done 2026-11-10 (mido 1.2.10). port name `USB MIDI Interface:USB MIDI Interface MIDI 1 20:0` (client number can change -> match by name prefix)
+    - NEXT (resume here): `tools/axefx.py`
+        - send helpers: preset(n) -> CC 0 + PC, bypass(block, on) -> CC 127/0, ext(1|2, 0-127)
+        - receive: sysex parser that drops stray F7s + the realtime 01 10 stream, firmware query as a self-test
+        - block -> CC table from the CTRL page (Drive 49, Delay 47, Reverb 83, Wah 97, Chorus 41, Flanger 56, Volume 93, tap 14, tuner 15)
+        - small CLI to poke at it, then the stage-2 loop (serial events from the ESP32 in, MIDI out)
+    - DEFERRED: bypass state after a preset change. a preset change reloads the saved bypass states (reloading preset 21 after CC changes worked; that the reload restores bypass states is the expected behaviour, not checked block by block) -> fine for the Ultra, but the bridge still has to know what those saved states ARE to light the LEDs
+        - options: capture Axe-Edit's queries on Windows (USBPcap + Wireshark), or a per-preset table in the bridge config, or LEDs only show what the Floorboard toggled since the preset loaded
+        - Ultra lockup risk applies to sysex queries only, not to CCs
 - [ ] side B: Floorboard driver firmware (buttons, pedals, LEDs, display)
 - [ ] stage 2: laptop-in-the-middle bridge
 - [ ] stage 3: everything on ESP32
