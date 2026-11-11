@@ -132,6 +132,31 @@
     - MIDI out: 5-pin DIN, 33R + 10R (3.3V MIDI spec), UART at 31250 baud
     - MIDI in: 5-pin DIN, 6N138 or H11L1 optocoupler, 220R, diode
     - final 5V supply + enclosure, once it moves off the breadboard
+- stage 3 + box - ORDER LIST (2026-11-11, prices/part numbers from memory, check listings)
+    - one amp at a time -> ONE MIDI OUT serves the Ultra now and the Katana later (replug). 3rd DIN jack only if both should stay cabled
+    - already have: 2x DIN-5 jacks (= Ultra OUT + IN), 74AHCT125, resistor kit, Jienk RJ45 pigtails, 22 AWG solid wire, 9V pedal supplies, GREATLINK (bench only)
+    - MIDI OUT (3.3V MIDI spec): DIN pin 4 -> 33R -> 3.3V, DIN pin 5 -> 10R -> UART TX, pin 2 -> GND. resistors from the kit
+    - MIDI IN: 6N138 optocoupler (DIP-8, buy 2-3) + DIP-8 socket, 1N4148 (buy a few), 220R from the kit
+        - DIN pin 4 -> 220R -> 6N138 pin 2, DIN pin 5 -> pin 3, 1N4148 across pins 2-3 (cathode to 2). DIN pin 2 NOT connected on the IN (that's the isolation)
+        - 6N138 VCC (pin 8) from 5V (it's characterised at 4.5V+, 3.3V is marginal), pin 5 GND, output pin 6 pull-up to the ESP32's 3.3V (~1k-2.2k, open collector so the GPIO never sees 5V) -> UART RX. optional ~10k pin 7 -> GND for faster edges. 100nF across pins 8-5
+    - power
+        - DC barrel jack, 2.1mm panel mount (wire it center-negative = pedal standard)
+        - reverse polarity: Schottky in series (1N5817 / SS34, drop irrelevant at 9V)
+        - 5V buck, FIXED output >= 1A, 9V in: e.g. Pololu D24V10F5 (1A) or D36V28F5 (2.6A). avoid the cheap adjustable MP1584/Mini-360 boards (one bad pot setting = 9V+ into the Floorboard)
+        - PTC polyfuse ~500mA hold on the Floorboard's 5V (pins 7/8). 100uF electrolytic + 100nF at the 5V rail
+        - size it once the Floorboard current (all LEDs on) is measured; 9V supply label >= 500mA
+    - panel connectors
+        - RJ45: panel-mount female-female coupler (screw flange or keystone) + one Jienk pigtail inside -> no RJ45 PCB footprint (staggered pins don't fit perfboard)
+        - USB-C: panel-mount extension (male -> panel female) to the dev board's UART port, so flashing/console work with the lid on. or just a hole lined up with the port
+        - Katana later (reserve the panel space now, don't buy yet): USB-A panel jack (S3 native USB, host), 3rd DIN if wanted
+    - board + assembly
+        - perfboard/stripboard ~70x90mm, 2x 1x22 female 2.54mm headers (dev board stays removable; check the DevKitC pin count), DIP-14 socket (74AHCT125)
+        - 100nF ceramic caps (a strip of 10+) if the earlier order still hasn't arrived
+        - stranded hookup wire + heat shrink for the panel jacks, M3 nylon standoffs + screws
+    - enclosure: Hammond 1590BB (~119x94x34mm) or Tayda 125B-size, bigger (1590DD-ish) if the perfboard + jacks don't fit. BUY LAST, after the perfboard layout
+        - drilling: step drill bit, center punch, deburring. rectangular holes (USB) = drill + file, or the round panel-mount parts above
+    - tools: soldering iron + solder + flux (still unchecked, needed for the step 7 headers anyway)
+    - not on this list: replacement Floorboard footswitches -> identify the switch type first (open the board, check size/pins)
 - final build: custom carrier PCB, once the circuit stops changing (likely after phase 2 proves the MIDI side)
     - dev board plugs into headers on the PCB, no bare ESP32 module -> no antenna/USB/power layout to get right, USB stays usable (flashing, JTAG, Katana USB host), swap the dev board if it dies
     - on the PCB: RJ45 jack, 74AHCT125, dividers + filter caps, MIDI in/out circuits, DC jack + 5V regulation
@@ -338,7 +363,11 @@
         - mapping v1: PRESET mode A-D = preset bank*4+0..3, UP/DOWN browse banks (`bNN`), SEL -> STOMP mode (A-D = Drive/Chorus/Delay/Reverb), TAP = tap, hold >= 1s = tuner, WAH toe = Wah block, treadles -> Ext 1/2 (raw cal wah 167-756, vol 132-761)
         - limit: stomp LEDs start off after a preset load (no readback, see side A DEFERRED)
     - **2026-11-11: FIRST Floorboard -> AxeFx command. pressed A, the Ultra loaded preset 0, display showed `0`. worked first try**
-    - NEXT (resume here): rest of the v1 mapping on the unit (UP/DOWN + A-D, SEL + stomp toggles, TAP + tuner hold, WAH toe, both treadles incl. which end is heel), then play it and tune the mapping
+    - 2026-11-11 v1 mapping on the unit: UP/DOWN banks (`b01` -> A = preset 4) OK, SEL -> stomp + A/C toggling Drive/Delay OK, TAP tempo + hold = tuner (TAP LED) OK, WAH toe toggles Wah OK
+        - SEL LED did NOT visibly light (the bridge sends `led sel on`; the step-5 `test` walk lit every bit). TODO: `led sel on` in the UNO monitor, find where that LED is / whether it exists. if none: show stomp mode some other way (e.g. display dot)
+        - as expected, stomp LEDs start off -> extra presses to sync. plan: per-preset LED table in JSON, HOLD SEL = "current LEDs = this preset's saved state". must store the SAVED state, not the last toggles (the Ultra reverts on reload), so it's a deliberate gesture, not auto-learn. real fix = sysex readback, still deferred
+        - NOT tested yet: treadles (heel/toe direction, smoothness, dead zones)
+    - NEXT (resume here): treadle test, then the SEL LED + per-preset LED table in stage2.py
 - [ ] stage 3: everything on ESP32
 
 ## links
