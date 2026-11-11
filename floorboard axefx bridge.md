@@ -72,6 +72,15 @@
     - -> use these instead of inventing our own
     - 2026-11-10 checked on my Ultra: the CCs are on I/O > CTRL (the page after MIDI), and they're ALREADY the defaults: input vol 10, bypass 13, tap 14, tuner 15, Ext 2 17, Ext 3-8 = 18-23, looper 1 24-28, looper 2 29-33, Amp 37/38, Cab 39/40, Chorus 41/42, Comp 43/44, Crossover 45/46, Delay 47/48, Drive 49/50, Flanger 56/57, FX loop 59. rest of the list not read yet (Reverb, Wah, Volume should be 83, 97, 93)
         - EXTERNAL 1 = PEDAL 1 (the Ultra's own pedal jack), NOT a CC -> set it to 16 for the wah treadle
+            - DONE 2026-11-10: EXTERNAL 1 = 16
+    - 2026-11-10 CONFIRMED from the laptop (`amidi -p hw:1,0,0 -S ...`), preset 20: CC 49 (Drive 1), 47 (Delay 1), 83 (Reverb 1) -> value 0 = OFF, 127 = ON, each block switched right away
+        - a CC bypass change lights the Ultra's yellow EDITED light (preset now differs from its saved state). reloading the preset (same PC) restores the saved bypass states
+        - PC n loads preset n (PC 20 -> preset 20, PC 21 -> 21 "Cliffs of Dover") with DISPLAY OFFSET 0
+        - send one message at a time and watch the unit: blasting a scripted sequence was hard to verify by eye
+        - CC 97 = 127 turned Wah 1 on (default number holds). sweeping CC 16 (Ext 1) 0->127->0 in steps of 4, ~150ms apart, moved the wah through preset 20's existing modifier -> the Floorboard wah treadle can map straight onto CC 16
+        - CC 17 (Ext 2) sweep moved Volume 1 in preset 24, once its modifier source was changed from EXTERNAL 1 to EXTERNAL 2 (front panel: select the param, ENTER = modifier page, SOURCE). both treadle paths work
+            - my presets mostly have every pedal modifier on EXTERNAL 1 (the old single expression pedal) -> volume modifiers need moving to EXTERNAL 2 preset by preset (easier in Axe-Edit)
+            - still to check: which end of the sweep is heel, and how smooth it is at the Floorboard's real resolution/update rate
 - LATER / earmark: the Ultra HAS a looper (2 of them, CC 24-33: rec, play, once, dub, rev). a Floorboard looper mode is a candidate future feature
 - Ultra sysex param set (GM Arts "Axe-FX Ultra System Exclusive Messages" v1.2a, fw 10.02-10.05; mine is 11.00): `F0 00 01 74 01 02 bb bb pp pp vv vv 01 F7`, each ID/value split low nibble first (163 = A3 -> `03 0A`), values 0-254. ~100ms between messages
     - block IDs (decimal, block 2 = +1): Amp 106, Reverb 110, Delay 112, Chorus 116, Flanger 118, Wah 124, VolPan 127, Drive 133. e.g. Amp 1 = `0A 06`, Drive 1 = `05 08`
