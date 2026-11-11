@@ -324,7 +324,7 @@
     - DONE by hand 2026-11-10 (amidi): PC + bank select, bypass CCs, Ext 1/2 sweeps all work -> details under AxeFx mapping
     - python: `sudo apt install python3-mido python3-rtmidi` done 2026-11-10 (mido 1.2.10). port name `USB MIDI Interface:USB MIDI Interface MIDI 1 20:0` (client number can change -> match by name prefix)
     - `tools/axefx.py` written 2026-11-11 (python-rtmidi direct, NOT mido: mido drops whole packets that contain the doubled F7). loopback-tested via Midi Through only
-    - NEXT (resume here): test `tools/axefx.py` on the Ultra, then the stage-2 glue (UNO serial events -> axefx.py)
+    - 2026-11-11 `tools/axefx.py` on the Ultra: `ports`, `fw` (11.00 round trip), `preset` (two presets incl. 128 = bank path), `bypass` delay + drive off/on all OK. ext/tap/tuner not re-run (same CC path, ext covered by the 11-10 hand tests)
         - send helpers: preset(n) -> CC 0 + PC, bypass(block, on) -> CC 127/0, ext(1|2, 0-127)
         - receive: sysex parser that drops stray F7s + the realtime 01 10 stream, firmware query as a self-test
         - block -> CC table from the CTRL page (Drive 49, Delay 47, Reverb 83, Wah 97, Chorus 41, Flanger 56, Volume 93, tap 14, tuner 15)
@@ -334,6 +334,11 @@
         - Ultra lockup risk applies to sysex queries only, not to CCs
 - [ ] side B: Floorboard driver firmware (buttons, pedals, LEDs, display)
 - [ ] stage 2: laptop-in-the-middle bridge
+    - `tools/stage2.py`: UNO reference sketch (unchanged, serial events + `disp`/`led` commands) -> laptop -> `axefx.py` -> Ultra. stdlib serial (termios), no pyserial
+        - mapping v1: PRESET mode A-D = preset bank*4+0..3, UP/DOWN browse banks (`bNN`), SEL -> STOMP mode (A-D = Drive/Chorus/Delay/Reverb), TAP = tap, hold >= 1s = tuner, WAH toe = Wah block, treadles -> Ext 1/2 (raw cal wah 167-756, vol 132-761)
+        - limit: stomp LEDs start off after a preset load (no readback, see side A DEFERRED)
+    - **2026-11-11: FIRST Floorboard -> AxeFx command. pressed A, the Ultra loaded preset 0, display showed `0`. worked first try**
+    - NEXT (resume here): rest of the v1 mapping on the unit (UP/DOWN + A-D, SEL + stomp toggles, TAP + tuner hold, WAH toe, both treadles incl. which end is heel), then play it and tune the mapping
 - [ ] stage 3: everything on ESP32
 
 ## links
