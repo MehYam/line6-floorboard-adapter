@@ -67,6 +67,13 @@
 - Ext 1 / Ext 2 = CCs from the two treadles
 - per preset: modifier on Wah freq <- Ext 1, Volume block level <- Ext 2
 - channels A-D + bank up/down -> Program Change, 4 presets/bank. 384 presets, so >127 needs Bank Select (CC 0) first
+    - GM Arts doc: CC 0 value 0/1/2 = Ultra bank A/B/C (128 presets each), applies to the NEXT PC. avoid CC 32 (Bank LSB)
+- Fractal/MFC-101 default CCs (set the same numbers in I/O > MIDI, then any MFC-style mapping just works): 14 tap, 15 tuner, 16/17 Ext 1/2, 37 Amp 1, 41 Chorus 1, 47 Delay 1, 49 Drive 1, 56 Flanger 1, 83 Reverb 1, 93 Volume 1, 97 Wah 1, 34 global bypass
+    - -> use these instead of inventing our own
+- Ultra sysex param set (GM Arts "Axe-FX Ultra System Exclusive Messages" v1.2a, fw 10.02-10.05; mine is 11.00): `F0 00 01 74 01 02 bb bb pp pp vv vv 01 F7`, each ID/value split low nibble first (163 = A3 -> `03 0A`), values 0-254. ~100ms between messages
+    - block IDs (decimal, block 2 = +1): Amp 106, Reverb 110, Delay 112, Chorus 116, Flanger 118, Wah 124, VolPan 127, Drive 133. e.g. Amp 1 = `0A 06`, Drive 1 = `05 08`
+    - the doc has NO query messages (bypass states, preset name, dump). still unknown -> capture Axe-Edit's traffic, or use CC only and track state in the bridge
+    - local copy (wayback save, not committed): `Axe-FX SysEx Messages.html`. source: https://web.archive.org/web/20191115072515/http://www.gmarts.org/html/axefx_ultra_sysex_1005.html
 
 ## parts
 - phase 1 (Floorboard controller, bench/breadboard) - order now
@@ -247,6 +254,28 @@
             - spec for the ESP32 (step 7), staying inside the proven window: '1' = 1.25us high + 8us low, '0' = 5.3us high + 4.5us low (~9.6us period, ~300us frame). RMT makes these exact, no jitter
             - later, optional: sweep the ESP32 timings to find the board's real limits (shortest low, the 1/0 high split)
     7. ESP32: RMT pulse train -> 74AHCT125 -> compare capture against the UNO one, then dividers + ADC for buttons/pedals
+        - prep: first check the chip/shield says ESP32-S3 (still open from the parts check)
+        - USB ports (S3-DevKitC-1 style, two USB-C): either one powers + flashes. ONE cable, laptop -> the UART/COM port
+            - UART/COM = USB-serial bridge chip (CP2102 -> /dev/ttyUSB0, CH343 -> /dev/ttyACM0, check `lsusb`) on UART0. acts like the UNO: upload + monitor just work, console survives firmware crashes/resets. use it for all of step 7
+            - USB = the S3's native USB (303a:1001 "USB JTAG/serial debug unit", GPIO19/20). for later: JTAG debugging, USB host (Katana). port drops + comes back on every reset. Arduino `Serial` only goes there with `ARDUINO_USB_CDC_ON_BOOT=1`
+        - headers: the board only has holes -> solder the male header strips once (usually in the bag; else any 2.54mm breakaway male header), long pins down, then it plugs into the breadboard
+            - breadboard as jig: strips in the breadboard at the board's row spacing, board on top components up -> pins stay straight
+            - tack one corner pin per strip, check the board sits flat, then the rest. ~330-350C, leaded solder easier, ~2s iron on pin + pad then feed solder -> small shiny cone, no bridges
+            - pull it out by rocking end to end, don't pry one side
+            - need iron + solder (+ flux) - not on the parts list, check. solder one board, keep the second as a spare
+            - wide board: on one breadboard it may leave only 1 (or 0) free holes per side -> check before planning. fix: two breadboards side by side straddling the gap, or male-female jumpers off the pins
+        - 3.3V ONLY: no GPIO ever sees 5V. pull-ups go to the board's 3.3V pin (1k switch, 10k per pedal), NOT 5V
+            - pedals: do the 4a TODO before connecting a GPIO - 10k to 3.3V, sweep heel->toe with the meter, confirm the pin never goes above 3.3V
+        - pins (proposal, ADC1 only since ADC2 dies with WiFi): GPIO4 <- pin 6 (switches), GPIO5 <- pin 2 (wah), GPIO6 <- pin 4 (vol), GPIO16 -> RMT LED data
+            - avoid: GPIO0/3/45/46 (strapping), 19/20 (native USB), 43/44 (UART0 = console), 26-32 (flash), 33-37 (PSRAM on R8/R8V boards)
+        - 74AHCT125 (DIP-14): VCC pin 14 -> BENCH 5V, GND pin 7 -> common GND. 1OE pin 1 -> GND (enabled), 1A pin 2 <- GPIO16, 1Y pin 3 -> 330R -> Floorboard pin 5
+            - unused inputs 2A/3A/4A (pins 5, 9, 12) -> GND, don't leave floating. 100nF across VCC/GND at the chip once caps arrive (short wires are OK on the bench without it)
+            - 3.3V into AHCT is fine: TTL input thresholds (high >= 2.0V) even at 5V VCC
+        - rails, same as the UNO setup: one side = BENCH (bench 5V + terminals 7/8 + 74AHCT125 VCC), other side = ESP32 3.3V (the pull-ups). GND rails linked by one jumper
+            - ESP32 5V/VIN pin = laptop USB power -> connects to NOTHING. bench 5V and ESP32 3.3V never touch
+            - before power, continuity: terminal 7 <-> ESP32 3.3V NO beep, terminal 7 <-> ESP32 5V NO beep, terminal 1 <-> ESP32 GND beep
+        - power up: bench first (5.00V / 500mA), THEN ESP32 USB. power down: USB first, then bench (pull-ups must never drive an unpowered Floorboard)
+        - capture: same sigrok setup as step 6. CH0 -> GPIO16 (3.3V side) first, CH1 -> pin 5 (5V side after the 330R). decode must match `frame A5 3C 0F 81` and land in the 6-step spec windows
 - [ ] later: switch reliability (the old POD sometimes misfired)
     - Floorboard is passive (resistors only), the host's pull-up + ADC + firmware decide the button -> the bridge can do better than the POD did
     - likely causes: dirty/worn switch contacts adding ohms (A only has ~150R headroom before it reads as B), voltage passing through other buttons' bands during press/release + contact bounce, tight bands at the top (idle/DOWN/UP/UP+DOWN ~0.12V apart)
@@ -254,7 +283,16 @@
     - measure first: firmware logs raw ADC per press, hammer each button ~50x, look at the spread
     - 2026-11-06 UNO run confirmed it: steady within a press, but B (and less so TAP) drift press to press -> contacts. cleaning in progress (step 5)
 - [ ] phase 2: test GREATLINK cable with sysex, order MIDI jack parts (+ UM-ONE if the cable is flaky)
-- [ ] back up AxeFx presets
+    - 2026-11-10 GREATLINK cable on linux: lsusb `fc02:0101 USB MIDI Interface`, ALSA `hw:1,0,0`. class-compliant, no driver needed
+        - plugs: the ORIGINAL (Axe-Edit-proven) orientation is right; my "crossed" guess was wrong -> nothing in either direction. right way round, the cable's green LED blinks constantly (realtime sysex)
+        - Ultra I/O > MIDI: channel 1, PROG CHANGE on, mapping none, SYSEX ID 00 01 74, DISPLAY OFFSET 0, SEND REALTIME SYSEX all
+        - OUT works: `amidi -p hw:1,0,0 -S 'C0 05'` switches preset
+        - IN works: idle stream of `F0 00 01 74 01 10 F7` (realtime, probably the tempo beat, not confirmed)
+        - sysex round trip works: firmware query `F0 00 01 74 00 08 00 00 F7` -> `F0 00 01 74 01 08 0B 00 F7` = Ultra (01), firmware 11.00. no checksum on the Ultra
+        - cable/driver quirk: some messages arrive with a doubled F7 (`... 10 F7 F7`) -> the parser must drop stray F7s. watch for worse corruption on big dumps (the backup = the real test)
+        - tooling gotcha: `amidi -d` killed by `timeout` prints nothing (buffered stdout lost). use `timeout -s INT N amidi ... -r file.bin` + xxd instead
+        - Ultra param set (per a forum post, unverified): `F0 00 01 74 01 02 b_lo b_hi p_lo p_hi v_lo v_hi 01 F7`, values 0-254 split into 4-bit nibbles. GetBypassStates / preset name / dump formats NOT found yet: GM Arts Ultra sysex doc (gmarts.org/html/axefx_ultra_sysex_1005.html) is dead, fractal wiki blocks automated fetches
+- [x] back up AxeFx presets (done earlier with Axe-Edit on Windows)
 - [ ] side A: python scripts talking to AxeFx
 - [ ] side B: Floorboard driver firmware (buttons, pedals, LEDs, display)
 - [ ] stage 2: laptop-in-the-middle bridge
