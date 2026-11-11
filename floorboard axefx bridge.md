@@ -3,6 +3,17 @@
 ## decision
 - leave Floorboard stock (no POD needed), build external ESP32 bridge box that talks to it over the Cat5 the way the POD did
     - modular: Floorboard driver + per-device profile (AxeFx now, Katana later)
+    - 2026-11-11 decisions
+        - final build = ESP32-S3 (confirmed: S3 on the back of the board). UNO stays as the Floorboard front end for stage 2 (UNO -> laptop -> Ultra) while step 7 runs on the side. UNO can't do the end state: one UART shared with the console, 2KB RAM, no USB host
+        - ONE amp at a time, not both: pick the profile on the Floorboard (e.g. hold a button at boot), not two rigs at once
+        - Ultra first, get the Floorboard into use sooner. Katana work postponed, but the build keeps room for it
+        - MIDI on 5-pin DIN in the box (OUT: 2 resistors, IN: 6N138), NOT a GREATLINK-style cable: the S3 has one USB host port, the cable has quirks (doubled F7), USB host is the hardest firmware
+        - power: 9V center-negative pedal supply (have several, check label >= 500mA) -> 5V buck >= 1A + reverse-polarity diode, polyfuse on the Floorboard 5V. TODO measure the Floorboard's current with all LEDs on
+        - Katana = Gen 3 head: 5-pin MIDI IN only + GA-FC TRS jack + USB (Tone Studio)
+            - LEDs without readback: the bridge keeps its own per-channel effect-state table in flash, learned from the presses (the Katana has few channels, so it's manageable). drifts only on panel/Tone Studio edits
+            - real readback maybe via USB host later. unknown whether the Gen 3 USB is class-compliant MIDI -> probe with `lsusb` + `amidi -l` on the laptop (postponed)
+            - GA-FC jack: proprietary undocumented protocol (as far as known), skip
+            - reserve on the build: Katana MIDI OUT works on the same DIN OUT (one amp at a time, replug), or a 2nd OUT jack footprint so both stay cabled. USB-A host jack + switched/fused 5V footprint, spare GPIO header
     - Floorboard stays resellable / POD-compatible
 - cable interface is fully documented (Mark Lavelle's decode, via the Cycling74 Arduino sketch) -> buttons, pedals, ALL LEDs + 3-digit display controllable, no reverse engineering needed
 - confirm model first: original Floor Board (1999-2002, black, for POD/POD 2.0 with jack labelled "Pedal") = this protocol. FBV/Shortboard/FBV4 (also black) = digital RS485 protocol (different project)
@@ -268,7 +279,7 @@
             - spec for the ESP32 (step 7), staying inside the proven window: '1' = 1.25us high + 8us low, '0' = 5.3us high + 4.5us low (~9.6us period, ~300us frame). RMT makes these exact, no jitter
             - later, optional: sweep the ESP32 timings to find the board's real limits (shortest low, the 1/0 high split)
     7. ESP32: RMT pulse train -> 74AHCT125 -> compare capture against the UNO one, then dividers + ADC for buttons/pedals
-        - prep: first check the chip/shield says ESP32-S3 (still open from the parts check)
+        - prep: chip is ESP32-S3 (confirmed 2026-11-11, labelled on the back). left: solder the headers
         - USB ports (S3-DevKitC-1 style, two USB-C): either one powers + flashes. ONE cable, laptop -> the UART/COM port
             - UART/COM = USB-serial bridge chip (CP2102 -> /dev/ttyUSB0, CH343 -> /dev/ttyACM0, check `lsusb`) on UART0. acts like the UNO: upload + monitor just work, console survives firmware crashes/resets. use it for all of step 7
             - USB = the S3's native USB (303a:1001 "USB JTAG/serial debug unit", GPIO19/20). for later: JTAG debugging, USB host (Katana). port drops + comes back on every reset. Arduino `Serial` only goes there with `ARDUINO_USB_CDC_ON_BOOT=1`
@@ -312,7 +323,8 @@
 - [ ] side A: python scripts talking to AxeFx
     - DONE by hand 2026-11-10 (amidi): PC + bank select, bypass CCs, Ext 1/2 sweeps all work -> details under AxeFx mapping
     - python: `sudo apt install python3-mido python3-rtmidi` done 2026-11-10 (mido 1.2.10). port name `USB MIDI Interface:USB MIDI Interface MIDI 1 20:0` (client number can change -> match by name prefix)
-    - NEXT (resume here): `tools/axefx.py`
+    - `tools/axefx.py` written 2026-11-11 (python-rtmidi direct, NOT mido: mido drops whole packets that contain the doubled F7). loopback-tested via Midi Through only
+    - NEXT (resume here): test `tools/axefx.py` on the Ultra, then the stage-2 glue (UNO serial events -> axefx.py)
         - send helpers: preset(n) -> CC 0 + PC, bypass(block, on) -> CC 127/0, ext(1|2, 0-127)
         - receive: sysex parser that drops stray F7s + the realtime 01 10 stream, firmware query as a self-test
         - block -> CC table from the CTRL page (Drive 49, Delay 47, Reverb 83, Wah 97, Chorus 41, Flanger 56, Volume 93, tap 14, tuner 15)
