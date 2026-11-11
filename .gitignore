@@ -21,3 +21,6 @@ fp-info-cache
 # editors / OS
 *~
 .DS_Store
+
+# Wayback Machine player scripts from saving the GM Arts page (the content is all in the .html)
+Axe-FX SysEx Messages_files/

@@ -70,6 +70,9 @@
     - GM Arts doc: CC 0 value 0/1/2 = Ultra bank A/B/C (128 presets each), applies to the NEXT PC. avoid CC 32 (Bank LSB)
 - Fractal/MFC-101 default CCs (set the same numbers in I/O > MIDI, then any MFC-style mapping just works): 14 tap, 15 tuner, 16/17 Ext 1/2, 37 Amp 1, 41 Chorus 1, 47 Delay 1, 49 Drive 1, 56 Flanger 1, 83 Reverb 1, 93 Volume 1, 97 Wah 1, 34 global bypass
     - -> use these instead of inventing our own
+    - 2026-11-10 checked on my Ultra: the CCs are on I/O > CTRL (the page after MIDI), and they're ALREADY the defaults: input vol 10, bypass 13, tap 14, tuner 15, Ext 2 17, Ext 3-8 = 18-23, looper 1 24-28, looper 2 29-33, Amp 37/38, Cab 39/40, Chorus 41/42, Comp 43/44, Crossover 45/46, Delay 47/48, Drive 49/50, Flanger 56/57, FX loop 59. rest of the list not read yet (Reverb, Wah, Volume should be 83, 97, 93)
+        - EXTERNAL 1 = PEDAL 1 (the Ultra's own pedal jack), NOT a CC -> set it to 16 for the wah treadle
+- LATER / earmark: the Ultra HAS a looper (2 of them, CC 24-33: rec, play, once, dub, rev). a Floorboard looper mode is a candidate future feature
 - Ultra sysex param set (GM Arts "Axe-FX Ultra System Exclusive Messages" v1.2a, fw 10.02-10.05; mine is 11.00): `F0 00 01 74 01 02 bb bb pp pp vv vv 01 F7`, each ID/value split low nibble first (163 = A3 -> `03 0A`), values 0-254. ~100ms between messages
     - block IDs (decimal, block 2 = +1): Amp 106, Reverb 110, Delay 112, Chorus 116, Flanger 118, Wah 124, VolPan 127, Drive 133. e.g. Amp 1 = `0A 06`, Drive 1 = `05 08`
     - the doc has NO query messages (bypass states, preset name, dump). still unknown -> capture Axe-Edit's traffic, or use CC only and track state in the bridge
